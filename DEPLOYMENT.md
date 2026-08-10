@@ -12,7 +12,7 @@
 | ----------- | ----------------------------------------------------------------- |
 | Họ và tên   | Lường Duy Thái                                                    |
 | Mã học viên | 2A202601021                                                       |
-| Repo        | https://github.com/DuyThai2303/K3-Day-12-2A202601021-LuongDuyThai |
+| Repo        | https://github.com/DuyThai2303/K3-Day12-2A202601021-LuongDuyThai |
 
 ## Service
 
