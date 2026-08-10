@@ -8,11 +8,11 @@
 
 ## Thông Tin Học Viên
 
-| Mục         | Nội dung                                                         |
-| ----------- | ---------------------------------------------------------------- |
-| Họ và tên   | Lường Duy Thái                                                   |
-| Mã học viên | 2A202601021                                                      |
-| Repo        | https://github.com/DuyThai2303/K3-Day12-2A202601021-LuongDuyThai |
+| Mục         | Nội dung                                                          |
+| ----------- | ----------------------------------------------------------------- |
+| Họ và tên   | Lường Duy Thái                                                    |
+| Mã học viên | 2A202601021                                                       |
+| Repo        | https://github.com/DuyThai2303/K3-Day-12-2A202601021-LuongDuyThai |
 
 ## Service
 
@@ -41,18 +41,18 @@ Thay `<URL>` bằng Public URL ở trên:
 
 ```bash
 # 1. Liveness — mong đợi 200 {"status":"ok"}
-curl -i [https://k3-day12-2a202601021-luongduythai-1.onrender.com/health](https://k3-day-12-2a202601021-luongduythai.onrender.com/health)
+curl -i [https://k3-day-12-2a202601021-luongduythai.onrender.com/health](https://k3-day-12-2a202601021-luongduythai.onrender.com/health)
 
 # 2. Readiness — mong đợi 200 {"status":"ready"} (đã nối được Redis)
-curl -i [https://k3-day12-2a202601021-luongduythai-1.onrender.com/ready](https://k3-day-12-2a202601021-luongduythai.onrender.com/ready)
+curl -i [https://k3-day-12-2a202601021-luongduythai.onrender.com/ready](https://k3-day-12-2a202601021-luongduythai.onrender.com/ready)
 
 # 3. Không có API key — mong đợi 401
-curl -i -X POST [https://k3-day12-2a202601021-luongduythai-1.onrender.com/ask](https://k3-day-12-2a202601021-luongduythai.onrender.com/ask) \
+curl -i -X POST [https://k3-day-12-2a202601021-luongduythai.onrender.com/ask](https://k3-day-12-2a202601021-luongduythai.onrender.com/ask) \
   -H "Content-Type: application/json" \
   -d '{"question":"Hello"}'
 
 # 4. Có API key — mong đợi 200 kèm câu trả lời
-curl -i -X POST [https://k3-day12-2a202601021-luongduythai-1.onrender.com/ask](https://k3-day-12-2a202601021-luongduythai.onrender.com/ask) \
+curl -i -X POST [https://k3-day-12-2a202601021-luongduythai.onrender.com/ask](https://k3-day-12-2a202601021-luongduythai.onrender.com/ask) \
   -H "Content-Type: application/json" \
   -H "X-API-Key: $AGENT_API_KEY" \
   -H "X-User-Id: sv-test" \
@@ -60,7 +60,7 @@ curl -i -X POST [https://k3-day12-2a202601021-luongduythai-1.onrender.com/ask](h
 
 # 5. Rate limit — gọi 15 lần, những lần cuối phải trả 429
 for i in $(seq 1 15); do
-  curl -s -o /dev/null -w "%{http_code} " -X POST [https://k3-day12-2a202601021-luongduythai-1.onrender.com/ask](https://k3-day-12-2a202601021-luongduythai.onrender.com/ask) \
+  curl -s -o /dev/null -w "%{http_code} " -X POST [https://k3-day-12-2a202601021-luongduythai.onrender.com/ask](https://k3-day-12-2a202601021-luongduythai.onrender.com/ask) \
     -H "Content-Type: application/json" \
     -H "X-API-Key: $AGENT_API_KEY" \
     -H "X-User-Id: sv-test" \
