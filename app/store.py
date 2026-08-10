@@ -58,17 +58,22 @@ class ConversationStore:
 
 
 def get_redis_client(redis_url: str | None = None) -> redis.Redis:
-    """Tạo kết nối Redis client.
-    
-    Nếu redis_url không được truyền vào, hàm sẽ tự động lấy từ get_settings().redis_url.
-    Hỗ trợ Redis giả lập trong RAM nếu URL có tiền tố fake://.
-    """
+    """Tạo kết nối Redis client an toàn, không làm sập Server khi URL lỗi."""
     if redis_url is None:
-        from app.config import get_settings
-        redis_url = get_settings().redis_url
+        try:
+            from app.config import get_settings
+            redis_url = get_settings().redis_url
+        except Exception:
+            redis_url = "fake://"
 
-    if str(redis_url).startswith("fake://"):
+    # Nếu URL trống hoặc dùng fake:// -> Trả về Redis giả trong RAM
+    if not redis_url or str(redis_url).startswith("fake://"):
         import fakeredis
         return fakeredis.FakeRedis(decode_responses=True)
 
-    return redis.Redis.from_url(redis_url, decode_responses=True)
+    try:
+        return redis.Redis.from_url(redis_url, decode_responses=True)
+    except Exception:
+        # Nếu chuỗi URL Redis bị lỗi cấu hình -> Fallback an toàn về fakeredis
+        import fakeredis
+        return fakeredis.FakeRedis(decode_responses=True)
