@@ -1,5 +1,7 @@
 """Module ConversationStore quản lý lịch sử trò chuyện bằng Redis (CP4)."""
 
+from __future__ import annotations
+
 import json
 import redis
 
@@ -55,8 +57,16 @@ class ConversationStore:
             return False
 
 
-def get_redis_client(redis_url: str = "redis://localhost:6379/0") -> redis.Redis:
-    """Tạo kết nối Redis client (hỗ trợ fake:// bằng fakeredis)."""
+def get_redis_client(redis_url: str | None = None) -> redis.Redis:
+    """Tạo kết nối Redis client.
+    
+    Nếu redis_url không được truyền vào, hàm sẽ tự động lấy từ get_settings().redis_url.
+    Hỗ trợ Redis giả lập trong RAM nếu URL có tiền tố fake://.
+    """
+    if redis_url is None:
+        from app.config import get_settings
+        redis_url = get_settings().redis_url
+
     if str(redis_url).startswith("fake://"):
         import fakeredis
         return fakeredis.FakeRedis(decode_responses=True)
