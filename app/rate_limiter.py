@@ -1,59 +1,45 @@
-"""CP3 — Rate limiting bằng thuật toán sliding window.
-
-Đếm số request trong 60 giây **gần nhất** (cửa sổ trượt), thay vì đếm theo
-phút đồng hồ. Đếm theo phút đồng hồ có lỗ hổng: 10 request lúc 10:00:59 và
-10 request lúc 10:01:01 = 20 request trong 2 giây mà vẫn "đúng luật".
-
-Cấu trúc dữ liệu: Redis Sorted Set (ZSET), score = timestamp của request.
-"""
-
-from __future__ import annotations
+"""Module Rate Limiter dạng Sliding Window sử dụng Redis (CP3)."""
 
 import time
 import uuid
-
 from fastapi import HTTPException, status
+import redis
 
 WINDOW_SECONDS = 60
 
 
 class RateLimiter:
-    def __init__(self, client, limit_per_minute: int) -> None:
-        self.client = client
+
+    def __init__(self, redis_client: redis.Redis, limit_per_minute: int = 10):
+        self.client = redis_client
         self.limit = limit_per_minute
 
     @staticmethod
     def _key(user_id: str) -> str:
-        """CHO SẴN — mỗi user một key riêng."""
-        return f"ratelimit:{user_id}"
+        return f"rate_limit:{user_id}"
 
     def hit_count(self, user_id: str, now: float | None = None) -> int:
-        """Số request của user trong ``WINDOW_SECONDS`` giây gần nhất.
-
-        TODO (CP3):
-          1. ``now = now if now is not None else time.time()``
-          2. Xóa các entry cũ hơn cửa sổ:
-             ``self.client.zremrangebyscore(key, 0, now - WINDOW_SECONDS)``
-          3. Trả về ``self.client.zcard(key)``
-        """
-        raise NotImplementedError("TODO (CP3): cài đặt hit_count")
+        """Đếm số request hợp lệ trong cửa sổ 60s hiện tại."""
+        now = now if now is not None else time.time()
+        key = self._key(user_id)
+        # Prune các entry cũ hơn 60s
+        self.client.zremrangebyscore(key, 0, now - WINDOW_SECONDS)
+        return int(self.client.zcard(key))
 
     def check(self, user_id: str, now: float | None = None) -> None:
-        """Cho qua nếu còn quota, ngược lại raise 429.
+        """Cho qua nếu còn quota, ngược lại raise HTTP 429."""
+        now = now if now is not None else time.time()
+        key = self._key(user_id)
 
-        TODO (CP3):
-          1. ``now = now if now is not None else time.time()``
-          2. Gọi ``self.hit_count(user_id, now)``.
-          3. Nếu số đó ``>= self.limit`` → raise
-             ``HTTPException(status_code=429, detail="rate limit exceeded",
-                             headers={"Retry-After": str(WINDOW_SECONDS)})``
-          4. Chưa vượt → ghi nhận request này:
-             ``self.client.zadd(key, {f"{now}:{uuid.uuid4().hex}": now})``
-             (member phải là chuỗi DUY NHẤT, nếu không hai request cùng
-             timestamp sẽ ghi đè nhau và bạn đếm thiếu)
-             rồi ``self.client.expire(key, WINDOW_SECONDS)`` để key tự dọn.
+        count = self.hit_count(user_id, now)
 
-        Lưu ý thứ tự: **kiểm tra trước, ghi nhận sau**. Ghi trước rồi mới đếm
-        sẽ chặn nhầm ngay ở request thứ ``limit``.
-        """
-        raise NotImplementedError("TODO (CP3): cài đặt check")
+        if count >= self.limit:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="rate limit exceeded",
+                headers={"Retry-After": str(WINDOW_SECONDS)},
+            )
+
+        # Ghi nhận request bằng member chứa UUID chống trùng timestamp
+        self.client.zadd(key, {f"{now}:{uuid.uuid4().hex}": now})
+        self.client.expire(key, WINDOW_SECONDS)

@@ -1,37 +1,35 @@
-"""CP1 — Structured logging.
-
-`print("user abc hỏi gì đó")` là log cho người đọc. Cloud (Railway, Render,
-Cloud Run, Datadog...) đọc log bằng máy: một dòng = một JSON object thì mới
-lọc/đếm/cảnh báo được. Đây là khác biệt lớn giữa localhost và production.
-"""
-
-from __future__ import annotations
+"""Hỗ trợ Structured Logging dạng JSON cho ứng dụng (CP1)."""
 
 import json
 import sys
 from datetime import datetime, timezone
 
 
-def utc_now_iso() -> str:
-    """CHO SẴN — thời điểm hiện tại theo ISO-8601, múi giờ UTC."""
-    return datetime.now(timezone.utc).isoformat()
+def log_event(event_name: str, level: str = "info", **kwargs) -> str:
+    """Ghi log sự kiện theo định dạng JSON cấu trúc.
 
-
-def log_event(event: str, level: str = "info", **fields) -> str:
-    """Ghi một dòng log JSON ra stdout.
-
-    TODO (CP1): tạo dict gồm tối thiểu 3 khóa
-        - "event"     : tên sự kiện, lấy từ tham số ``event``
-        - "level"     : mức log, VIẾT THƯỜNG (dùng ``level.lower()``)
-        - "timestamp" : ``utc_now_iso()``
-    rồi gộp thêm mọi cặp key/value trong ``**fields``.
-
-    In chuỗi JSON đó ra stdout **trên một dòng duy nhất**
-    (``json.dumps(..., ensure_ascii=False)``, đừng dùng ``indent``) và
-    trả về chính chuỗi đó.
-
-    Ví dụ:
-        >>> log_event("ask_completed", user_id="sv01", cost_usd=0.0001)
-        '{"event": "ask_completed", "level": "info", "timestamp": "...", ...}'
+    Yêu cầu:
+    1. Tự động bổ sung timestamp theo định dạng ISO 8601 (UTC).
+    2. Chuẩn hóa `level` thành chữ viết thường ("info", "error",...).
+    3. In chuỗi JSON ra `sys.stdout` trên một dòng duy nhất.
+    4. Trả về chuỗi JSON (str) để phục vụ việc kiểm thử unit test.
     """
-    raise NotImplementedError("TODO (CP1): cài đặt log_event")
+    level_str = str(level).lower()
+
+    log_data = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "level": level_str,
+        "event": event_name,
+    }
+
+    # Nối thêm các tham số tùy ý (ví dụ: user_id, cost_usd, latency_ms,...)
+    log_data.update(kwargs)
+
+    # Chuyển đổi dict thành chuỗi JSON
+    json_str = json.dumps(log_data, ensure_ascii=False)
+
+    # In ra stdout (bắt buộc flush=True để pytest và Docker collector bắt được log ngay)
+    print(json_str, file=sys.stdout, flush=True)
+
+    # Trả về chuỗi JSON
+    return json_str

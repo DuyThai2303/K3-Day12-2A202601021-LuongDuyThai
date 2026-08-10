@@ -1,63 +1,39 @@
-"""CP3 — Cost guard: chặn chi phí trước khi hóa đơn chặn bạn.
-
-Rate limit giới hạn *số lượng* request. Cost guard giới hạn *số tiền*: một
-user gửi 10 request/phút nhưng mỗi request 50k token vẫn đốt sạch ngân sách.
-"""
-
-from __future__ import annotations
+"""Module Cost Guard quản lý ngân sách người dùng theo tháng (CP3)."""
 
 from datetime import datetime, timezone
-
 from fastapi import HTTPException, status
-
-# Giữ dữ liệu chi tiêu thêm ~40 ngày để còn đối soát sang tháng sau
-KEY_TTL_SECONDS = 40 * 24 * 3600
+import redis
 
 
 class CostGuard:
-    def __init__(self, client, monthly_budget_usd: float) -> None:
-        self.client = client
-        self.budget = monthly_budget_usd
+
+    def __init__(self, redis_client: redis.Redis, monthly_budget_usd: float = 10.0):
+        self.client = redis_client
+        self.budget_usd = monthly_budget_usd
 
     @staticmethod
-    def current_month() -> str:
-        """CHO SẴN — nhãn tháng hiện tại dạng '2026-08' (UTC)."""
-        return datetime.now(timezone.utc).strftime("%Y-%m")
+    def _key(user_id: str, now: datetime | None = None) -> str:
+        now = now if now is not None else datetime.now(timezone.utc)
+        month_str = now.strftime("%Y-%m")
+        return f"cost:{user_id}:{month_str}"
 
-    @classmethod
-    def _key(cls, user_id: str, month: str | None = None) -> str:
-        """CHO SẴN — khóa Redis theo từng user, từng tháng."""
-        return f"cost:{user_id}:{month or cls.current_month()}"
+    def spent(self, user_id: str, now: datetime | None = None) -> float:
+        """Trả về số tiền đã tiêu tốn của user trong tháng hiện tại."""
+        key = self._key(user_id, now)
+        val = self.client.get(key)
+        return float(val) if val else 0.0
 
-    def spent(self, user_id: str, month: str | None = None) -> float:
-        """Số tiền user đã tiêu trong tháng.
+    def check(self, user_id: str, estimated_cost: float = 0.0, now: datetime | None = None) -> None:
+        """Kiểm tra nếu chi phí hiện tại + ước tính lớn hơn budget -> raise 402."""
+        current_spent = self.spent(user_id, now)
+        if current_spent + estimated_cost > self.budget_usd:
+            raise HTTPException(
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                detail="monthly budget exceeded",
+            )
 
-        TODO (CP3): đọc ``self.client.get(self._key(user_id, month))``.
-        Key chưa tồn tại → Redis trả None → hàm này phải trả ``0.0``.
-        Nhớ ép kiểu ``float(...)`` vì Redis trả về chuỗi.
-        """
-        raise NotImplementedError("TODO (CP3): cài đặt spent")
-
-    def check(
-        self,
-        user_id: str,
-        estimated_cost: float = 0.0,
-        month: str | None = None,
-    ) -> None:
-        """Cho qua nếu còn ngân sách, ngược lại raise 402.
-
-        TODO (CP3): nếu ``spent(user_id) + estimated_cost > self.budget``
-        → raise ``HTTPException(status_code=402, detail="monthly budget exceeded")``.
-        402 = Payment Required, đúng ngữ nghĩa cho tình huống hết ngân sách.
-        """
-        raise NotImplementedError("TODO (CP3): cài đặt check")
-
-    def record(self, user_id: str, cost: float, month: str | None = None) -> float:
-        """Cộng dồn chi phí vừa phát sinh, trả về tổng mới.
-
-        TODO (CP3):
-          1. ``total = self.client.incrbyfloat(key, cost)``
-          2. ``self.client.expire(key, KEY_TTL_SECONDS)``
-          3. ``return float(total)``
-        """
-        raise NotImplementedError("TODO (CP3): cài đặt record")
+    def record(self, user_id: str, cost_usd: float, now: datetime | None = None) -> float:
+        """Cộng dồn chi phí thực tế sau khi gọi LLM thành công."""
+        key = self._key(user_id, now)
+        new_total = self.client.incrbyfloat(key, cost_usd)
+        return float(new_total)
